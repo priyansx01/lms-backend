@@ -127,14 +127,24 @@ CREATE TABLE IF NOT EXISTS employee_profiles (
     last_active       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ─── Seed admin user ──────────────────────────────────────────────────────────
--- Password: admin123 (bcrypt hash)
+-- ─── Seed users for development ───────────────────────────────────────────────
+-- Admin: admin@ismart.com / admin123
+-- Learner: learner@ismart.com / learner123
 
 INSERT INTO users (id, name, email, password_hash, role)
 VALUES (
     'a0000000-0000-0000-0000-000000000001',
     'Admin User',
     'admin@ismart.com',
-    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+    '$2a$10$/66Mqcx9CuO6zR5Y1VwW8O2nTMRxSZHtCNqv8e.RhCUexKI/CApLq',
     'admin'
+) ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (id, name, email, password_hash, role)
+VALUES (
+    'a0000000-0000-0000-0000-000000000002',
+    'Test Learner',
+    'learner@ismart.com',
+    '$2a$10$/66Mqcx9CuO6zR5Y1VwW8O2nTMRxSZHtCNqv8e.RhCUexKI/CApLq',
+    'employee'
 ) ON CONFLICT (email) DO NOTHING;
