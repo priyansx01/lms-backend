@@ -15,8 +15,16 @@ type Config struct {
 	Redis    RedisConfig
 	JWT      JWTConfig
 	MinIO    MinIOConfig
-	Kafka    KafkaConfig
-	CORS     CORSConfig
+	Kafka      KafkaConfig
+	ClickHouse ClickHouseConfig
+	CORS       CORSConfig
+}
+
+type ClickHouseConfig struct {
+	Addr     string
+	User     string
+	Password string
+	Database string
 }
 
 type AppConfig struct {
@@ -115,6 +123,12 @@ func Load() *Config {
 		},
 		Kafka: KafkaConfig{
 			Brokers: getEnv("KAFKA_BROKERS", "localhost:9092"),
+		},
+		ClickHouse: ClickHouseConfig{
+			Addr:     getEnv("CLICKHOUSE_ADDR", "localhost:9000"),
+			User:     getEnv("CLICKHOUSE_USER", "lms"),
+			Password: getEnv("CLICKHOUSE_PASSWORD", "lms_secret"),
+			Database: getEnv("CLICKHOUSE_DB", "smartfm_analytics"),
 		},
 		CORS: CORSConfig{
 			Origins: getEnv("CORS_ORIGINS", "http://localhost:3000"),

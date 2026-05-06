@@ -1,0 +1,363 @@
+{
+  "info": {
+    "name": "SmartFM LMS API",
+    "description": "Postman Collection for the SmartFM LMS Backend (Go API)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.access_token) {",
+                  "    pm.environment.set(\"access_token\", jsonData.data.access_token);",
+                  "    pm.environment.set(\"refresh_token\", jsonData.data.refresh_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {"type": "noauth"},
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@ismart.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.access_token) {",
+                  "    pm.environment.set(\"access_token\", jsonData.data.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {"type": "noauth"},
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "List Courses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses"]
+            }
+          }
+        },
+        {
+          "name": "Create Course",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.id) {",
+                  "    pm.environment.set(\"course_id\", jsonData.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Fire Safety Fundamentals\",\n  \"description\": \"Learn the basics of fire safety\",\n  \"category\": \"Safety & Compliance\",\n  \"level\": \"Beginner\",\n  \"tags\": [\"safety\", \"compliance\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses"]
+            }
+          }
+        },
+        {
+          "name": "Get Course",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Course",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Fire Safety Fundamentals (Updated)\",\n  \"description\": \"Updated description\",\n  \"category\": \"Safety & Compliance\",\n  \"level\": \"Intermediate\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Course",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Modules",
+      "item": [
+        {
+          "name": "List Modules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}/modules",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}", "modules"]
+            }
+          }
+        },
+        {
+          "name": "Create Module",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.id) {",
+                  "    pm.environment.set(\"module_id\", jsonData.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Module 1: Introduction to Fire Extinguishers\",\n  \"description\": \"Understanding types of fire extinguishers\",\n  \"order_index\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}/modules",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}", "modules"]
+            }
+          }
+        },
+        {
+          "name": "Upload Module File (Multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}/modules/{{module_id}}/upload",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}", "modules", "{{module_id}}", "upload"]
+            }
+          }
+        },
+        {
+          "name": "Delete Module",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/courses/{{course_id}}/modules/{{module_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "courses", "{{course_id}}", "modules", "{{module_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Dashboard Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/dashboard/overview",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "dashboard", "overview"]
+            }
+          }
+        },
+        {
+          "name": "Dashboard Dropoff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/dashboard/dropoff",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "dashboard", "dropoff"]
+            }
+          }
+        },
+        {
+          "name": "Track Video Watched",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"course_id\": \"{{course_id}}\",\n  \"module_id\": \"{{module_id}}\",\n  \"watch_pct\": 75.5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/events/video-watched",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "analytics", "events", "video-watched"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "course_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "module_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

@@ -2,6 +2,9 @@ APP_NAME=smartfm-lms
 BINARY_NAME=lms-api
 CMD_DIR=./cmd/api
 
+-include .env
+export
+
 .PHONY: build run dev test lint clean migrate-up migrate-down sqlc
 
 ## ─── Build & Run ──────────────────────────────────────────────────────────────

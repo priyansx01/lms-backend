@@ -34,7 +34,9 @@ func (h *Handler) RegisterRoutes(api fiber.Router) {
 	courses.Delete("/:id/modules/:moduleId", h.DeleteModule)
 
 	// Upload + Playback
+	courses.Post("/:id/modules/:moduleId/upload", h.UploadFile)
 	courses.Post("/:id/modules/:moduleId/upload-url", h.GetUploadURL)
+	courses.Post("/:id/modules/:moduleId/upload-complete", h.CompleteUpload)
 	courses.Get("/:id/modules/:moduleId/playback-url", h.GetPlaybackURL)
 }
 
@@ -84,10 +86,9 @@ func (h *Handler) Create(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(string)
 	course, err := h.svc.CreateCourse(userID, req)
 	if err != nil {
-		return response.InternalError(c, "Failed to create course")
+	        return response.InternalError(c, "Failed to create course: " + err.Error())
 	}
-	return response.Created(c, course)
-}
+	return response.Created(c, course)}
 
 func (h *Handler) Update(c *fiber.Ctx) error {
 	var req CreateCourseRequest
@@ -144,6 +145,27 @@ func (h *Handler) DeleteModule(c *fiber.Ctx) error {
 
 // ─── Upload + Playback ────────────────────────────────────────────────────────
 
+func (h *Handler) UploadFile(c *fiber.Ctx) error {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return response.BadRequest(c, "Missing file in request")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return response.InternalError(c, "Failed to open uploaded file")
+	}
+	defer file.Close()
+
+	userID := c.Locals("user_id").(string)
+	err = h.svc.UploadModuleFile(c.Context(), userID, c.Params("id"), c.Params("moduleId"), fileHeader.Filename, file, fileHeader.Size, fileHeader.Header.Get("Content-Type"))
+	if err != nil {
+		return response.InternalError(c, "Failed to upload file and trigger processing")
+	}
+
+	return response.OK(c, fiber.Map{"message": "Upload complete, processing started"})
+}
+
 func (h *Handler) GetUploadURL(c *fiber.Ctx) error {
 	var req UploadURLRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -160,6 +182,21 @@ func (h *Handler) GetUploadURL(c *fiber.Ctx) error {
 		"object_key": objectKey,
 		"expires_at": "1h",
 	})
+}
+
+func (h *Handler) CompleteUpload(c *fiber.Ctx) error {
+	var req UploadURLRequest // reusing the struct for file_name
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	userID := c.Locals("user_id").(string)
+	err := h.svc.CompleteUpload(c.Context(), userID, c.Params("id"), c.Params("moduleId"), req.FileName)
+	if err != nil {
+		return response.InternalError(c, "Failed to complete upload and trigger processing")
+	}
+
+	return response.OK(c, fiber.Map{"message": "Upload complete, processing started"})
 }
 
 func (h *Handler) GetPlaybackURL(c *fiber.Ctx) error {

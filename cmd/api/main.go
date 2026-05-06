@@ -17,10 +17,12 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
+	"github.com/priyansx01/smartfm-lms/internal/analytics"
 	"github.com/priyansx01/smartfm-lms/internal/auth"
 	"github.com/priyansx01/smartfm-lms/internal/config"
 	"github.com/priyansx01/smartfm-lms/internal/course"
 	"github.com/priyansx01/smartfm-lms/internal/database"
+	"github.com/priyansx01/smartfm-lms/internal/event"
 	"github.com/priyansx01/smartfm-lms/internal/middleware"
 	"github.com/priyansx01/smartfm-lms/internal/storage"
 )
@@ -38,6 +40,15 @@ func main() {
 	}
 	defer db.Close()
 
+	// ─── ClickHouse ───────────────────────────────────────────────────────────
+	chConn, err := analytics.ConnectClickHouse(cfg.ClickHouse)
+	if err != nil {
+		log.Printf("⚠ ClickHouse connection failed (analytics disabled): %v", err)
+		chConn = nil
+	} else {
+		defer chConn.Close()
+	}
+
 	// ─── MinIO Storage ────────────────────────────────────────────────────────
 	store, err := storage.NewClient(cfg.MinIO)
 	if err != nil {
@@ -49,9 +60,22 @@ func main() {
 	// ─── JWT Manager ──────────────────────────────────────────────────────────
 	jwtMgr := auth.NewJWTManager(cfg.JWT)
 
+	// ─── Kafka Publisher ──────────────────────────────────────────────────────
+	pub, err := event.NewKafkaPublisher([]string{cfg.Kafka.Brokers})
+	if err != nil {
+		log.Printf("⚠ Kafka connection failed (video events disabled): %v", err)
+		pub = nil
+	} else {
+		defer pub.Close()
+	}
+
 	// ─── Services ─────────────────────────────────────────────────────────────
 	authSvc := auth.NewService(db, jwtMgr)
-	courseSvc := course.NewService(db, store)
+	courseSvc := course.NewService(db, store, pub)
+	var analyticsSvc *analytics.Service
+	if chConn != nil {
+		analyticsSvc = analytics.NewService(chConn)
+	}
 
 	// ─── Fiber App ────────────────────────────────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -97,6 +121,12 @@ func main() {
 	// Courses (protected)
 	courseHandler := course.NewHandler(courseSvc)
 	courseHandler.RegisterRoutes(api)
+
+	// Analytics (protected)
+	if analyticsSvc != nil {
+		analyticsHandler := analytics.NewHandler(analyticsSvc)
+		analyticsHandler.RegisterRoutes(api)
+	}
 
 	// ─── Graceful Shutdown ────────────────────────────────────────────────────
 	quit := make(chan os.Signal, 1)

@@ -2,14 +2,17 @@
 package course
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/priyansx01/smartfm-lms/internal/domain"
+	"github.com/priyansx01/smartfm-lms/internal/event"
 	"github.com/priyansx01/smartfm-lms/internal/storage"
 )
 
@@ -22,11 +25,12 @@ var (
 type Service struct {
 	db      *sql.DB
 	storage *storage.Client
+	pub     *event.Publisher
 }
 
 // NewService creates a new course service.
-func NewService(db *sql.DB, s *storage.Client) *Service {
-	return &Service{db: db, storage: s}
+func NewService(db *sql.DB, s *storage.Client, p *event.Publisher) *Service {
+	return &Service{db: db, storage: s, pub: p}
 }
 
 // ─── Course CRUD ──────────────────────────────────────────────────────────────
@@ -233,4 +237,69 @@ func (s *Service) GetPlaybackURL(courseID, moduleID string) (string, time.Time, 
 		return "", time.Time{}, err
 	}
 	return url, time.Now().Add(ttl), nil
+}
+
+// UploadModuleFile handles direct file upload and triggers processing.
+func (s *Service) UploadModuleFile(ctx context.Context, userID, courseID, moduleID, fileName string, reader io.Reader, size int64, contentType string) error {
+	objectKey := fmt.Sprintf("raw/%s/%s/%s", courseID, moduleID, fileName)
+
+	err := s.storage.UploadFile(ctx, objectKey, reader, size, contentType)
+	if err != nil {
+		return fmt.Errorf("storage upload: %w", err)
+	}
+
+	// Update module status
+	_, err = s.db.Exec(`UPDATE modules SET status = $1, updated_at = $2 WHERE id = $3 AND course_id = $4`,
+		"processing", time.Now(), moduleID, courseID)
+	if err != nil {
+		return fmt.Errorf("update module status: %w", err)
+	}
+
+	// Fire event to Kafka if configured
+	if s.pub != nil {
+		ev := event.VideoUploadedEvent{
+			CourseID:       courseID,
+			ModuleID:       moduleID,
+			LMSUserID:      userID,
+			MinioKey:       objectKey,
+			QualityTargets: []int{360, 720, 1080},
+			Timestamp:      time.Now().Format(time.RFC3339),
+		}
+		if err := s.pub.PublishJSON(ctx, event.TopicVideoUploaded, ev); err != nil {
+			return fmt.Errorf("publish video.uploaded event: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// CompleteUpload handles post-upload logic: updating DB and firing the Kafka event.
+func (s *Service) CompleteUpload(ctx context.Context, userID, courseID, moduleID, fileName string) error {
+	objectKey := fmt.Sprintf("raw/%s/%s/%s", courseID, moduleID, fileName)
+
+	// Update module status
+	_, err := s.db.Exec(`UPDATE modules SET status = $1, updated_at = $2 WHERE id = $3 AND course_id = $4`,
+		"processing", time.Now(), moduleID, courseID)
+	if err != nil {
+		return fmt.Errorf("update module status: %w", err)
+	}
+
+	// Fire event to Kafka if configured
+	if s.pub != nil {
+		ev := event.VideoUploadedEvent{
+			CourseID:       courseID,
+			ModuleID:       moduleID,
+			LMSUserID:      userID,
+			MinioKey:       objectKey,
+			QualityTargets: []int{360, 720, 1080},
+			Timestamp:      time.Now().Format(time.RFC3339),
+		}
+		if err := s.pub.PublishJSON(ctx, event.TopicVideoUploaded, ev); err != nil {
+			// Log error but don't fail the upload complete request, maybe queue it
+			// For now just returning the error
+			return fmt.Errorf("publish video.uploaded event: %w", err)
+		}
+	}
+
+	return nil
 }

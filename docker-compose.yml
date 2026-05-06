@@ -1,5 +1,6 @@
 # SmartFM LMS Backend — Docker Compose (Infrastructure Only)
 # The Go API runs natively on the host; infra runs in Docker.
+# Optimized for low-configuration servers (VPS).
 #
 # Usage:
 #   docker compose up -d                      # start infra
@@ -26,6 +27,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   # ─── Redis ─────────────────────────────────────────────────────────────────
   redis:
@@ -34,14 +39,18 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # ─── MinIO 1: Raw Video Uploads ────────────────────────────────────────────
-  # Console UI: http://localhost:9001  (minioadmin / minioadmin)
   minio-raw:
     image: minio/minio:latest
     container_name: lms-minio-raw
@@ -60,9 +69,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   # ─── MinIO 2: HLS Processed Videos ────────────────────────────────────────
-  # Console UI: http://localhost:9003  (minioadmin / minioadmin)
   minio-hls:
     image: minio/minio:latest
     container_name: lms-minio-hls
@@ -81,8 +93,70 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─── Kafka ─────────────────────────────────────────────────────────────────
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: lms-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      # Tune Kafka JVM memory footprint aggressively
+      - KAFKA_HEAP_OPTS=-Xmx256M -Xms256M
+    volumes:
+      - kafka_data:/tmp/kafka-logs
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--list", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── ClickHouse ────────────────────────────────────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3-alpine
+    container_name: lms-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123" # HTTP port
+      - "9004:9000" # Native port
+    environment:
+      - CLICKHOUSE_USER=lms
+      - CLICKHOUSE_PASSWORD=lms_secret
+      - CLICKHOUSE_DB=smartfm_analytics
+      # Tell clickhouse to limit RAM usage
+      - MAX_SERVER_MEMORY_USAGE=536870912
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
 volumes:
   pgdata:
   minio_raw_data:
   minio_hls_data:
+  kafka_data:
+  clickhouse_data:
