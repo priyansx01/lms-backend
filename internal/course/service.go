@@ -4,12 +4,14 @@ package course
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/priyansx01/smartfm-lms/internal/domain"
 	"github.com/priyansx01/smartfm-lms/internal/event"
@@ -26,11 +28,12 @@ type Service struct {
 	db      *sql.DB
 	storage *storage.Client
 	pub     *event.Publisher
+	rdb     *redis.Client
 }
 
 // NewService creates a new course service.
-func NewService(db *sql.DB, s *storage.Client, p *event.Publisher) *Service {
-	return &Service{db: db, storage: s, pub: p}
+func NewService(db *sql.DB, s *storage.Client, p *event.Publisher, rdb *redis.Client) *Service {
+	return &Service{db: db, storage: s, pub: p, rdb: rdb}
 }
 
 // ─── Course CRUD ──────────────────────────────────────────────────────────────
@@ -302,4 +305,29 @@ func (s *Service) CompleteUpload(ctx context.Context, userID, courseID, moduleID
 	}
 
 	return nil
+}
+
+// GetModuleProgress returns the transcoding progress from Redis.
+func (s *Service) GetModuleProgress(ctx context.Context, moduleID string) (map[string]interface{}, error) {
+	key := fmt.Sprintf("module:progress:%s", moduleID)
+	data, err := s.rdb.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			// Check DB if it's already ready
+			var status string
+			errDB := s.db.QueryRowContext(ctx, "SELECT status FROM modules WHERE id = $1", moduleID).Scan(&status)
+			if errDB == nil && status == string(domain.CourseStatusReady) {
+				return map[string]interface{}{"percent": 100, "status": "ready"}, nil
+			}
+			return map[string]interface{}{"percent": 0, "status": "pending"}, nil
+		}
+		return nil, fmt.Errorf("redis get: %w", err)
+	}
+
+	var progress map[string]interface{}
+	if err := json.Unmarshal([]byte(data), &progress); err != nil {
+		return nil, fmt.Errorf("json unmarshal: %w", err)
+	}
+
+	return progress, nil
 }

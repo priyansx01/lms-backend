@@ -2,9 +2,9 @@ package course
 
 import (
 	"errors"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
-
 	"github.com/priyansx01/smartfm-lms/internal/domain"
 	"github.com/priyansx01/smartfm-lms/pkg/response"
 )
@@ -38,6 +38,7 @@ func (h *Handler) RegisterRoutes(api fiber.Router) {
 	courses.Post("/:id/modules/:moduleId/upload-url", h.GetUploadURL)
 	courses.Post("/:id/modules/:moduleId/upload-complete", h.CompleteUpload)
 	courses.Get("/:id/modules/:moduleId/playback-url", h.GetPlaybackURL)
+	courses.Get("/:id/modules/:moduleId/progress", h.GetModuleProgress)
 }
 
 // ─── Course Handlers ──────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ func (h *Handler) UploadFile(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(string)
 	err = h.svc.UploadModuleFile(c.Context(), userID, c.Params("id"), c.Params("moduleId"), fileHeader.Filename, file, fileHeader.Size, fileHeader.Header.Get("Content-Type"))
 	if err != nil {
+		log.Printf("❌ File upload failed: %v", err)
 		return response.InternalError(c, "Failed to upload file and trigger processing")
 	}
 
@@ -209,4 +211,12 @@ func (h *Handler) GetPlaybackURL(c *fiber.Ctx) error {
 		"playback_url": url,
 		"expires_at":   expiresAt,
 	})
+}
+
+func (h *Handler) GetModuleProgress(c *fiber.Ctx) error {
+	progress, err := h.svc.GetModuleProgress(c.Context(), c.Params("moduleId"))
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch module progress")
+	}
+	return response.OK(c, progress)
 }

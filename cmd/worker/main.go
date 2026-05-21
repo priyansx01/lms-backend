@@ -23,6 +23,13 @@ func main() {
 		log.Fatalf("❌ MinIO connection failed: %v", err)
 	}
 
+	// ─── Redis Client ─────────────────────────────────────────────────────────
+	rdb, err := storage.NewRedisClient(cfg.Redis)
+	if err != nil {
+		log.Fatalf("❌ Redis connection failed: %v", err)
+	}
+	defer rdb.Close()
+
 	// ─── Kafka Publisher ──────────────────────────────────────────────────────
 	pub, err := event.NewKafkaPublisher([]string{cfg.Kafka.Brokers})
 	if err != nil {
@@ -31,7 +38,7 @@ func main() {
 	defer pub.Close()
 
 	// ─── Video Processor ──────────────────────────────────────────────────────
-	vp, err := worker.NewVideoProcessor(*cfg, store, pub)
+	vp, err := worker.NewVideoProcessor(*cfg, store, rdb, pub)
 	if err != nil {
 		log.Fatalf("❌ Failed to create video processor: %v", err)
 	}

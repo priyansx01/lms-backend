@@ -2,3 +2,6 @@
 tmp/
 *.exe
 vendor/
+*.log
+*.m3u8
+*.ts

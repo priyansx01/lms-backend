@@ -82,6 +82,33 @@ func (c *Client) PresignedUpload(objectKey string, ttl time.Duration) (string, e
 	return presignedURL.String(), nil
 }
 
+// DownloadRawFile downloads a file from the raw bucket to a local path.
+func (c *Client) DownloadRawFile(ctx context.Context, objectKey, filePath string) error {
+	err := c.mc.FGetObject(ctx, c.rawBucket, objectKey, filePath, minio.GetObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("download raw file: %w", err)
+	}
+	return nil
+}
+
+// UploadHLSFile uploads a file from a local path to the HLS bucket.
+func (c *Client) UploadHLSFile(ctx context.Context, objectKey, filePath, contentType string) error {
+	_, err := c.mc.FPutObject(ctx, c.hlsBucket, objectKey, filePath, minio.PutObjectOptions{ContentType: contentType})
+	if err != nil {
+		return fmt.Errorf("upload hls file: %w", err)
+	}
+	return nil
+}
+
+// UploadThumbnail uploads a file from a local path to the thumbnails bucket.
+func (c *Client) UploadThumbnail(ctx context.Context, objectKey, filePath, contentType string) error {
+	_, err := c.mc.FPutObject(ctx, c.thumbBucket, objectKey, filePath, minio.PutObjectOptions{ContentType: contentType})
+	if err != nil {
+		return fmt.Errorf("upload thumbnail file: %w", err)
+	}
+	return nil
+}
+
 // PresignedDownload generates a presigned GET URL for video playback.
 // Used until CloudFront is integrated.
 func (c *Client) PresignedDownload(bucket, objectKey string, ttl time.Duration) (string, error) {

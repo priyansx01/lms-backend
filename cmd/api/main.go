@@ -7,6 +7,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -57,6 +58,13 @@ func main() {
 		store = nil
 	}
 
+	// ─── Redis Client ─────────────────────────────────────────────────────────
+	rdb, err := storage.NewRedisClient(cfg.Redis)
+	if err != nil {
+		log.Fatalf("❌ Redis connection failed: %v", err)
+	}
+	defer rdb.Close()
+
 	// ─── JWT Manager ──────────────────────────────────────────────────────────
 	jwtMgr := auth.NewJWTManager(cfg.JWT)
 
@@ -71,16 +79,31 @@ func main() {
 
 	// ─── Services ─────────────────────────────────────────────────────────────
 	authSvc := auth.NewService(db, jwtMgr)
-	courseSvc := course.NewService(db, store, pub)
+	courseSvc := course.NewService(db, store, pub, rdb)
 	var analyticsSvc *analytics.Service
 	if chConn != nil {
 		analyticsSvc = analytics.NewService(chConn)
+	}
+
+	// ─── API Consumer ─────────────────────────────────────────────────────────
+	if cfg.Kafka.Brokers != "" {
+		consumer, err := course.NewConsumer(*cfg, courseSvc)
+		if err != nil {
+			log.Printf("⚠ Kafka consumer connection failed (video updates disabled): %v", err)
+		} else {
+			go func() {
+				if err := consumer.Start(context.Background()); err != nil {
+					log.Printf("❌ API Consumer stopped: %v", err)
+				}
+			}()
+		}
 	}
 
 	// ─── Fiber App ────────────────────────────────────────────────────────────
 	app := fiber.New(fiber.Config{
 		AppName:      cfg.App.Name,
 		ErrorHandler: globalErrorHandler,
+		BodyLimit:    1024 * 1024 * 1024, // 1GB
 	})
 
 	// Global middleware

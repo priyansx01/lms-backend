@@ -116,8 +116,6 @@ services:
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       # Tune Kafka JVM memory footprint aggressively
       - KAFKA_HEAP_OPTS=-Xmx256M -Xms256M
-    volumes:
-      - kafka_data:/tmp/kafka-logs
     healthcheck:
       test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--list", "--bootstrap-server", "localhost:9092"]
       interval: 10s
