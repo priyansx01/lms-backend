@@ -1,4 +1,4 @@
-# SmartFM LMS — Go Backend
+LMS — Go Backend
 
 Binary builds, database migrations, code generation.
 
